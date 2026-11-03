@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="Snake Rival — neon snake duel vs a smart AI snake on a 24x24 grid. First to 25 wins. Free HTML5 game.">
+<title>Snake Rival — Neon Snake Duel</title>
+<script>
+// 平台 SDK 按域名条件加载（独立运行时完全不加载，游戏行为不变）
+(function () {
+  var host = location.hostname || "";
+  try {
+    if (host.indexOf("crazygames") !== -1) {
+      var s1 = document.createElement("script");
+      s1.src = "https://sdk.crazygames.com/crazygames-sdk-v3.js";
+      s1.onload = function () {
+        if (window.CrazyGames && window.CrazyGames.SDK) {
+          window.CrazyGames.SDK.init().then(function () {
+            try { window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+            window.addEventListener("load", function () { try { window.CrazyGames.SDK.game.loadingStop(); } catch (e) {} });
+          }).catch(function () {});
+        }
+      };
+      document.head.appendChild(s1);
+      window.__portal = "crazygames";
+    } else if (host.indexOf("gamedistribution") !== -1 || host.indexOf("html5.gamedistribution.com") !== -1 || host.indexOf("gd.games") !== -1) {
+      var s2 = document.createElement("script");
+      s2.src = "https://sdk.gamedistribution.com/v2/main.min.js";
+      document.head.appendChild(s2);
+      window.__portal = "gamedistribution";
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#07070f; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  :root { --board: min(92vw, 560px, calc(100vh - 156px)); }
+  @supports (height:100dvh) { :root { --board: min(92vw, 560px, calc(100dvh - 156px)); } }
+  #wrap { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; }
+  #hud { width:var(--board); display:flex; align-items:flex-start; color:#e8e8f2; }
+  .stat { width:92px; }
+  .stat .label { font-size:12px; font-weight:800; letter-spacing:2px; }
+  .stat .sub { font-size:9px; color:#55556e; letter-spacing:1px; margin-top:2px; }
+  .you { color:#3ef0d4; } .ai { color:#ff4fd8; }
+  .right { text-align:right; }
+  #centerScore { flex:1; text-align:center; }
+  #bigScore { font-size:30px; font-weight:900; line-height:1; }
+  #ps { color:#3ef0d4; text-shadow:0 0 14px rgba(62,240,212,.55); }
+  #as { color:#ff4fd8; text-shadow:0 0 14px rgba(255,79,216,.55); }
+  .colon { color:#4a4a6a; margin:0 7px; }
+  #goal { font-size:9px; letter-spacing:2px; color:#5a5a7e; margin-top:3px; }
+  #stage { position:relative; width:var(--board); height:var(--board); }
+  canvas { display:block; width:var(--board); height:var(--board); border-radius:12px; touch-action:none; }
+  #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(5,5,14,.8); border-radius:12px; z-index:5; }
+  #panel { width:min(88%,332px); background:#12122a; border:1px solid #2a2a52; border-radius:18px; padding:22px 20px 18px; text-align:center; color:#fff; box-shadow:0 10px 40px rgba(0,0,0,.55); }
+  #panel h1 { font-size:24px; letter-spacing:3px; }
+  .t1 { color:#3ef0d4; text-shadow:0 0 18px rgba(62,240,212,.55); }
+  .t2 { color:#ff4fd8; text-shadow:0 0 18px rgba(255,79,216,.55); }
+  .tag { font-size:12px; color:#9a9ac0; margin-top:6px; }
+  .diffs { display:flex; flex-direction:column; gap:9px; margin:14px 0 12px; }
+  .diff { background:linear-gradient(135deg,#12233a,#1b1440); border:1px solid #2c3c66; color:#eaf2ff; border-radius:12px; padding:11px 0 9px; font-size:15px; font-weight:800; letter-spacing:2px; cursor:pointer; }
+  .diff:hover { border-color:#4a5f9e; }
+  .diff span { display:block; font-size:10px; font-weight:600; letter-spacing:1px; color:#7a86b8; margin-top:3px; }
+  #endTitle { font-size:24px; letter-spacing:2px; }
+  #endText { color:#9a9ac0; font-size:13px; margin-top:6px; }
+  .final { font-size:32px; font-weight:900; color:#ffd76a; margin:8px 0 2px; }
+  #recLine { font-size:11px; color:#7a86b8; letter-spacing:1px; }
+  .btns { display:flex; gap:10px; justify-content:center; margin-top:14px; }
+  #againBtn { background:linear-gradient(135deg,#19c9b0,#7b5bff); color:#fff; border:none; border-radius:12px; padding:12px 28px; font-size:15px; font-weight:800; letter-spacing:1px; cursor:pointer; }
+  #menuBtn { background:transparent; color:#8a8aa8; border:1px solid #33335c; border-radius:12px; padding:12px 20px; font-size:13px; font-weight:700; letter-spacing:1px; cursor:pointer; }
+  button:active { transform:scale(.97); }
+  .hint { font-size:11px; color:#6a6a92; line-height:1.7; margin-top:4px; }
+  #bottomRow { width:var(--board); display:flex; justify-content:space-between; align-items:center; }
+  #footer { color:#55556e; font-size:11px; }
+  #muteBtn { background:#14142a; color:#8a8aa8; border:1px solid #262648; border-radius:8px; padding:5px 10px; font-size:10px; font-weight:700; letter-spacing:1px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="stat"><div class="label you">YOU</div><div class="sub" id="diffLabel">&mdash;</div></div>
+    <div id="centerScore">
+      <div id="bigScore"><span id="ps">0</span><span class="colon">:</span><span id="as">0</span></div>
+      <div id="goal">FIRST TO 25</div>
+    </div>
+    <div class="stat right"><div class="label ai">AI</div><div class="sub">MAGENTA</div></div>
+  </div>
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="overlay"><div id="panel">
+      <div id="menuView">
+        <h1><span class="t1">SNAKE</span> <span class="t2">RIVAL</span></h1>
+        <p class="tag">Neon snake duel &mdash; first to 25 wins</p>
+        <div class="diffs">
+          <button class="diff" data-d="0">EASY<span id="rec0"></span></button>
+          <button class="diff" data-d="1">NORMAL<span id="rec1"></span></button>
+          <button class="diff" data-d="2">HARD<span id="rec2"></span></button>
+        </div>
+        <p class="hint">ARROWS / WASD or SWIPE to steer<br>Head-to-head: the longer snake wins<br>Crash and you burst &mdash; respawn in 3s</p>
+      </div>
+      <div id="endView" style="display:none">
+        <h2 id="endTitle">VICTORY</h2>
+        <p id="endText"></p>
+        <div class="final" id="finalScore">0 : 0</div>
+        <p id="recLine"></p>
+        <div class="btns">
+          <button id="againBtn">PLAY AGAIN</button>
+          <button id="menuBtn">MENU</button>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div id="bottomRow">
+    <div id="footer">Snake Rival &mdash; a free snake battle game</div>
+    <button id="muteBtn">SOUND ON</button>
+  </div>
+</div>
+<script>
+"use strict";
+/* =====================================================================
+   Snake Rival — 双蛇对抗
+   核心逻辑为纯函数（无 DOM 依赖），可在 Node 中无头运行做仿真测试；
+   渲染/音效/输入/UI 全部收在 IS_BROWSER 分支里。
+   ===================================================================== */
+
+/* ---------------- 核心常量 ---------------- */
+var COLS = 24, ROWS = 24, CELLS = COLS * ROWS;   // 24×24 场地
+var WIN_SCORE = 25;                              // 先到 25 分胜
+var DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];      // 方向：0上 1右 2下 3左
+var BASE_TICK = 120;                             // 初始移动节拍 ms（随最高分微调）
+var RESPAWN_MS = 3000;                           // 死后 3 秒重生
+var BODY_LEN0 = 4;                               // 出生/重生长度
+
+var RNG = Math.random;
+function setRng(f) { RNG = f; }                  // 测试可注入种子随机源
+
+function kOf(x, y) { return y * COLS + x; }
+function kx(k) { return k % COLS; }
+function ky(k) { return (k / COLS) | 0; }
+function inB(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS; }
+function kMan(a, b) {
+  var dx = kx(a) - kx(b), dy = ky(a) - ky(b);
+  return (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+}
+
+/* 三档难度：plan=每 tick 完整规划概率（反应速度）；space=前瞻空间余量；avoidHead=避开对手蛇头邻格 */
+var DIFFS = [
+  { name: "EASY",   plan: 0.55, space: 6,  avoidHead: false, jitter: 60 },
+  { name: "NORMAL", plan: 0.80, space: 14, avoidHead: true,  jitter: 16 },
+  { name: "HARD",   plan: 1.00, space: 24, avoidHead: true,  jitter: 3 }
+];
+
+function makeSnake(name, isAI, diff) {
+  return { name: name, isAI: isAI, diff: diff, body: [], dir: 1,
+           pending: [], score: 0, alive: false, respawn: 0, age: 0,
+           nh: -1, wall: false, grow: false, deathReason: "" };
+}
+
+function createSim(diffP, diffA, aiP) {
+  var sim = {
+    p: makeSnake("YOU", !!aiP, diffP),
+    a: makeSnake("AI", true, diffA),
+    foods: [], foodMap: new Uint8Array(CELLS),
+    state: "PLAY", tick: 0, tickMs: BASE_TICK,
+    winner: null, lastEvents: []
+  };
+  placeSnakeAt(sim.p, 4, 12, 1);   // 玩家在左，向右
+  placeSnakeAt(sim.a, 19, 11, 3);  // AI 在右，向左
+  for (var i = 0; i < 4; i++) spawnFood(sim);
+  return sim;
+}
+
+function placeSnakeAt(s, hx, hy, dir) {
+  s.body = [];
+  for (var i = 0; i < BODY_LEN0; i++) s.body.push(kOf(hx - DX[dir] * i, hy - DY[dir] * i));
+  s.dir = dir; s.pending = []; s.alive = true; s.respawn = 0; s.age = 0;
+  s.grow = false; s.nh = -1; s.wall = false;
+}
+
+/* ---------------- 食物 ---------------- */
+function cellBlocked(sim, k) {
+  var p = sim.p, a = sim.a;
+  if (p.alive && p.body.indexOf(k) >= 0) return true;
+  if (a.alive && a.body.indexOf(k) >= 0) return true;
+  return false;
+}
+function spawnFood(sim) {
+  if (sim.foods.length >= 5) return false;
+  for (var t = 0; t < 220; t++) {
+    var k = (RNG() * CELLS) | 0;
+    if (sim.foodMap[k] || cellBlocked(sim, k)) continue;
+    // 不落在蛇本 tick 即将进入的格子（nh），否则 move 阶段会按旧 foodMap 漏吃、食物被压在身下
+    if (sim.p.alive && k === sim.p.nh) continue;
+    if (sim.a.alive && k === sim.a.nh) continue;
+    sim.foods.push(k); sim.foodMap[k] = 1;
+    return true;
+  }
+  return false;
+}
+
+/* ---------------- 玩家转向输入：缓冲队列最多 2 个，拒绝 180° 回头 ---------------- */
+function applyPending(s) {
+  while (s.pending.length) {
+    var d = s.pending.shift();
+    if (d !== s.dir && d !== (s.dir + 2) % 4) { s.dir = d; break; }
+  }
+}
+function tryTurn(s, d) {
+  if (d < 0 || d > 3 || s.pending.length >= 2) return false;
+  var last = s.pending.length ? s.pending[s.pending.length - 1] : s.dir;
+  if (d === last || d === (last + 2) % 4) return false;  // 180° 回头 / 重复方向
+  s.pending.push(d);
+  return true;
+}
+
+/* ---------------- BFS / 洪泛（共享暂存数组，带世代戳免重置） ---------------- */
+var bfsMark = new Int32Array(CELLS), bfsD = new Int32Array(CELLS),
+    bfsQ = new Int32Array(CELLS), bfsGen = 0;
+
+function bfsDist(occ, startK, isTarget) {
+  if (isTarget(startK)) return 0;
+  bfsGen++;
+  var qh = 0, qt = 0;
+  bfsQ[qt++] = startK; bfsMark[startK] = bfsGen; bfsD[startK] = 0;
+  while (qh < qt) {
+    var k = bfsQ[qh++], nd = bfsD[k] + 1, x = kx(k), y = ky(k);
+    for (var d = 0; d < 4; d++) {
+      var nx = x + DX[d], ny = y + DY[d];
+      if (!inB(nx, ny)) continue;
+      var nk = ny * COLS + nx;
+      if (bfsMark[nk] === bfsGen || occ[nk]) continue;
+      if (isTarget(nk)) return nd;
+      bfsMark[nk] = bfsGen; bfsD[nk] = nd; bfsQ[qt++] = nk;
+    }
+  }
+  return -1;
+}
+function floodCount(occ, startK, cap) {
+  if (occ[startK]) return 0;
+  bfsGen++;
+  var qh = 0, qt = 0, cnt = 0;
+  bfsQ[qt++] = startK; bfsMark[startK] = bfsGen;
+  while (qh < qt) {
+    var k = bfsQ[qh++]; cnt++;
+    if (cnt >= cap) return cnt;
+    var x = kx(k), y = ky(k);
+    for (var d = 0; d < 4; d++) {
+      var nx = x + DX[d], ny = y + DY[d];
+      if (!inB(nx, ny)) continue;
+      var nk = ny * COLS + nx;
+      if (bfsMark[nk] === bfsGen || occ[nk]) continue;
+      bfsMark[nk] = bfsGen; bfsQ[qt++] = nk;
+    }
+  }
+  return cnt;
+}
+
+/* ---------------- AI：贪心 BFS 寻路 + 避险 + 被困追尾 ---------------- */
+function planOcc(sim) {
+  var occ = new Uint8Array(CELLS);
+  var p = sim.p, a = sim.a;
+  if (p.alive) for (var i = 0; i < p.body.length; i++) occ[p.body[i]] = 1;
+  if (a.alive) for (var j = 0; j < a.body.length; j++) occ[a.body[j]] = 1;
+  if (p.alive) occ[p.body[p.body.length - 1]] = 0;  // 规划近似：尾格将腾出
+  if (a.alive) occ[a.body[a.body.length - 1]] = 0;
+  return occ;
+}
+function aiChooseDir(sim, s, opp) {
+  var diff = DIFFS[s.diff];
+  var h = s.body[0], hx = kx(h), hy = ky(h);
+  var occ = planOcc(sim);
+  var tailK = s.body[s.body.length - 1];
+  var fm = sim.foodMap;
+  function foodT(k) { return fm[k] === 1; }
+  function tailT(k) { return k === tailK; }
+  var lazy = RNG() > diff.plan;            // 反应概率：本 tick 偷懒直行
+  var oppLen = opp.alive ? opp.body.length : 0;
+  var oppHead = opp.alive ? opp.body[0] : -1;
+  var bestD = s.dir, bestScore = -1e18;
+  for (var d = 0; d < 4; d++) {
+    if (d === (s.dir + 2) % 4) continue;   // 不许 180° 回头
+    var nx = hx + DX[d], ny = hy + DY[d], sc;
+    if (!inB(nx, ny)) sc = -1e9;
+    else {
+      var nk = ny * COLS + nx;
+      if (occ[nk] && nk !== tailK) sc = -1e9;   // 下一步可行域检查：撞身即否决
+      else {
+        sc = 0;
+        if (!lazy) {
+          var fd = bfsDist(occ, nk, foodT);     // BFS 到最近食物
+          if (fd >= 0) sc += 3000 - fd * 30;
+          else {
+            var td = bfsDist(occ, nk, tailT);   // 被困 → 追尾巴打转
+            if (td >= 0) sc += 1800 - td * 30;
+          }
+        }
+        sc += floodCount(occ, nk, s.body.length + diff.space) * 4;  // 前瞻步数=空间余量
+        if (diff.avoidHead && oppHead >= 0 && s.body.length <= oppLen &&
+            kMan(nk, oppHead) === 1) sc -= fm[nk] === 1 ? 400 : 1600;  // 打不过避开蛇头邻格（抢食物时惩罚减半档，避免对称僵局）
+        if (d === s.dir) sc += lazy ? 260 : 18;
+        else sc += RNG() * diff.jitter;
+      }
+    }
+    if (sc > bestScore) { bestScore = sc; bestD = d; }
+  }
+  return bestD;
+}
+
+/* ---------------- 碰撞判定与移动 ---------------- */
+/* 本 tick 精确占用：duel 输家整体消失不占格；存活且不增长的蛇尾格将腾出 */
+function buildOccDyn(sim, dieP, dieA) {
+  var occ = new Uint8Array(CELLS);
+  var pair = [[sim.p, dieP], [sim.a, dieA]];
+  for (var i = 0; i < 2; i++) {
+    var s = pair[i][0];
+    if (!s.alive || pair[i][1]) continue;
+    for (var c = 0; c < s.body.length; c++) occ[s.body[c]] = 1;
+  }
+  for (var j = 0; j < 2; j++) {
+    var s2 = pair[j][0];
+    if (!s2.alive || pair[j][1] || s2.grow) continue;
+    occ[s2.body[s2.body.length - 1]] = 0;
+  }
+  return occ;
+}
+function killSnake(sim, s, reason) {
+  s.alive = false;
+  s.deathReason = reason;
+  s.respawn = Math.max(4, Math.round(RESPAWN_MS / sim.tickMs));
+  sim.lastEvents.push({ type: "death", who: s === sim.p ? "p" : "a", reason: reason, body: s.body.slice() });
+  s.body = [];
+}
+function eatFood(sim, s, k) {
+  sim.foodMap[k] = 0;
+  var i = sim.foods.indexOf(k);
+  if (i >= 0) sim.foods.splice(i, 1);
+  sim.lastEvents.push({ type: "eat", who: s === sim.p ? "p" : "a", k: k });
+  spawnFood(sim);   // 吃掉即补，总量维持 3~5
+}
+
+function stepMatch(sim) {
+  if (sim.state !== "PLAY") return;
+  sim.tick++;
+  // 节拍微调：初始 120ms，随场上最高分缓慢降到 92ms
+  sim.tickMs = BASE_TICK - Math.min(Math.max(sim.p.score, sim.a.score), 28);
+  sim.lastEvents = [];
+  var p = sim.p, a = sim.a, snakes = [p, a], i, s;
+
+  // -- 1. 决策（AI 规划 / 玩家转向缓冲） --
+  for (i = 0; i < 2; i++) {
+    s = snakes[i];
+    if (!s.alive) continue;
+    if (s.isAI) s.dir = aiChooseDir(sim, s, snakes[1 - i]);
+    else applyPending(s);
+  }
+  // 输出本 tick 有效方向（测试校验器用；浏览器层忽略）
+  sim.lastEvents.push({ type: "tick", pdir: p.alive ? p.dir : -1, adir: a.alive ? a.dir : -1 });
+
+  // -- 2. 预计算下一头 --
+  for (i = 0; i < 2; i++) {
+    s = snakes[i];
+    if (!s.alive) { s.nh = -1; s.wall = false; s.grow = false; continue; }
+    var h = s.body[0], nx = kx(h) + DX[s.dir], ny = ky(h) + DY[s.dir];
+    if (!inB(nx, ny)) { s.nh = -1; s.wall = true; s.grow = false; }
+    else { s.nh = ny * COLS + nx; s.wall = false; s.grow = sim.foodMap[s.nh] === 1; }
+  }
+
+  // -- 3. 死亡判定（同 tick 同时判定）：先头对头（同格相撞或交换穿过，长者胜/等长同归），再撞墙/撞身 --
+  var dieP = null, dieA = null;
+  if (p.alive && a.alive && p.nh >= 0 && a.nh >= 0 &&
+      (p.nh === a.nh || (p.nh === a.body[0] && a.nh === p.body[0]))) {
+    if (p.body.length > a.body.length) dieA = "duel";
+    else if (a.body.length > p.body.length) dieP = "duel";
+    else { dieP = "duel"; dieA = "duel"; }
+  }
+  var occ = buildOccDyn(sim, dieP, dieA);
+  if (!dieP && p.alive) dieP = p.wall ? "wall" : (occ[p.nh] ? "crash" : null);
+  if (!dieA && a.alive) dieA = a.wall ? "wall" : (occ[a.nh] ? "crash" : null);
+  if (dieP) killSnake(sim, p, dieP);
+  if (dieA) killSnake(sim, a, dieA);
+
+  // -- 4. 存活者移动 --
+  for (i = 0; i < 2; i++) {
+    s = snakes[i];
+    if (!s.alive) continue;
+    s.body.unshift(s.nh);
+    if (s.grow) { s.score++; eatFood(sim, s, s.nh); }
+    else s.body.pop();
+    s.age++;
+  }
+
+  // -- 5. 胜负 --
+  if (p.score >= WIN_SCORE || a.score >= WIN_SCORE) {
+    sim.state = "OVER";
+    sim.winner = p.score > a.score ? "p" : (a.score > p.score ? "a" : "draw");
+    sim.lastEvents.push({ type: "end", winner: sim.winner });
+    return;
+  }
+
+  // -- 6. 重生计时 --
+  for (i = 0; i < 2; i++) {
+    s = snakes[i];
+    if (!s.alive && --s.respawn <= 0) respawnSnake(sim, s);
+  }
+
+  // -- 7. 食物保持 3~5 个 --
+  var guard = 0;
+  while (sim.foods.length < 3 && guard++ < 5) spawnFood(sim);
+  if (sim.tick % 45 === 0 && sim.foods.length < 5 && RNG() < 0.5) spawnFood(sim);
+}
+
+/* 重生：长度 4，选离对手最远、前方 3 格通畅的放置位 */
+function respawnSnake(sim, s) {
+  var opp = s === sim.p ? sim.a : sim.p;
+  var busy = new Uint8Array(CELLS);
+  var i, c;
+  if (opp.alive) for (i = 0; i < opp.body.length; i++) busy[opp.body[i]] = 1;
+  var cands = [];
+  var x, y;
+  for (y = 0; y < ROWS; y++) for (x = 0; x + 3 < COLS; x++) {
+    cands.push([kOf(x + 3, y), kOf(x + 2, y), kOf(x + 1, y), kOf(x, y), 1]);  // 头在右，向右
+    cands.push([kOf(x, y), kOf(x + 1, y), kOf(x + 2, y), kOf(x + 3, y), 3]);  // 头在左，向左
+  }
+  for (y = 0; y + 3 < ROWS; y++) for (x = 0; x < COLS; x++) {
+    cands.push([kOf(x, y + 3), kOf(x, y + 2), kOf(x, y + 1), kOf(x, y), 2]);  // 头在下，向下
+    cands.push([kOf(x, y), kOf(x, y + 1), kOf(x, y + 2), kOf(x, y + 3), 0]);  // 头在上，向上
+  }
+  var best = null, bestScore = -1e18;
+  for (i = 0; i < cands.length; i++) {
+    var cd = cands[i], headK = cd[0], free = true;
+    for (c = 0; c < 4; c++) if (busy[cd[c]] || sim.foodMap[cd[c]]) { free = false; break; }
+    if (!free) continue;
+    var hx = kx(headK), hy = ky(headK), okAhead = true;
+    for (c = 1; c <= 3; c++) {
+      var ax = hx + DX[cd[4]] * c, ay = hy + DY[cd[4]] * c;
+      if (!inB(ax, ay) || busy[ay * COLS + ax]) { okAhead = false; break; }
+    }
+    if (!okAhead) continue;
+    var dMin = 999;
+    if (opp.alive) {
+      for (var b = 0; b < opp.body.length; b++) {
+        var dm = kMan(headK, opp.body[b]);
+        if (dm < dMin) dMin = dm;
+      }
+    }
+    var sc = Math.min(dMin, 60) * 3 - (Math.abs(hx - 11.5) + Math.abs(hy - 11.5)) * 0.5;
+    if (sc > bestScore) { bestScore = sc; best = cd; }
+  }
+  if (!best) { s.respawn = 6; return; }  // 场面极挤：稍后再试
+  s.body = [best[0], best[1], best[2], best[3]];
+  s.dir = best[4]; s.pending = []; s.alive = true; s.respawn = 0;
+  s.age = 0; s.grow = false; s.nh = -1; s.wall = false;
+  sim.lastEvents.push({ type: "respawn", who: s === sim.p ? "p" : "a" });
+}
+
+/* =====================================================================
+   浏览器层：渲染 / 音效 / 输入 / UI
+   ===================================================================== */
+var IS_BROWSER = typeof window !== "undefined" && typeof document !== "undefined" && !!document.getElementById;
+if (IS_BROWSER) (function () {
+  var CELL = 24, SZ = COLS * CELL;
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = SZ * dpr; canvas.height = SZ * dpr;
+  ctx.scale(dpr, dpr);
+
+  var el = function (id) { return document.getElementById(id); };
+  var psEl = el("ps"), asEl = el("as"), diffLabel = el("diffLabel"),
+      overlay = el("overlay"), menuView = el("menuView"), endView = el("endView"),
+      endTitle = el("endTitle"), endText = el("endText"), finalScore = el("finalScore"),
+      recLine = el("recLine"), muteBtn = el("muteBtn");
+
+  /* ---------- 平台埋点（各 SDK 已由头部加载器做域名守卫） ---------- */
+  function portalStart() {
+    try {
+      if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK)
+        window.CrazyGames.SDK.game.gameplayStart();
+    } catch (e) {}
+  }
+  function portalStop(happy) {
+    try {
+      if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+        window.CrazyGames.SDK.game.gameplayStop();
+        if (happy) window.CrazyGames.SDK.game.happytime();
+      }
+    } catch (e) {}
+  }
+
+  /* ---------- 音效（WebAudio 合成，可静音） ---------- */
+  var actx = null, muted = false;
+  try { muted = localStorage.getItem("snakeRivalMuted") === "1"; } catch (e) {}
+  function ensureAudio() {
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+    } catch (e) {}
+  }
+  function tone(freq, dur, type, gain, delay) {
+    try {
+      if (muted || !actx) return;
+      if (actx.state === "suspended") actx.resume();
+      var t0 = actx.currentTime + (delay || 0);
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = type || "sine"; o.frequency.value = freq;
+      g.gain.setValueAtTime(gain || 0.1, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t0); o.stop(t0 + dur);
+    } catch (e) {}
+  }
+  function sEat() { tone(620 + sim.p.score * 8, .09, "triangle", .09); tone(880, .07, "sine", .05, .05); }
+  function sDeath() { tone(170, .28, "sawtooth", .09); tone(95, .4, "square", .06, .08); }
+  function sRespawn() { tone(330, .1, "sine", .07); tone(495, .12, "sine", .07, .09); }
+  function sWin() { var f = [523, 659, 784, 1047]; for (var i = 0; i < 4; i++) tone(f[i], .16, "triangle", .1, i * .13); }
+  function sLose() { var f = [392, 311, 233]; for (var i = 0; i < 3; i++) tone(f[i], .2, "sawtooth", .07, i * .15); }
+  function sUI() { tone(440, .06, "sine", .05); }
+  function applyMuteLabel() { muteBtn.textContent = muted ? "SOUND OFF" : "SOUND ON"; }
+  muteBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    muted = !muted;
+    try { localStorage.setItem("snakeRivalMuted", muted ? "1" : "0"); } catch (e2) {}
+    applyMuteLabel();
+    if (!muted) { ensureAudio(); sUI(); }
+  });
+
+  /* ---------- 战绩 localStorage（按难度分，全部 try/catch） ---------- */
+  var REC_KEY = "snakeRivalRecords1";
+  var recs = [{ w: 0, l: 0, d: 0 }, { w: 0, l: 0, d: 0 }, { w: 0, l: 0, d: 0 }];
+  function loadRecords() {
+    try {
+      var raw = localStorage.getItem(REC_KEY);
+      if (raw) {
+        var o = JSON.parse(raw);
+        for (var i = 0; i < 3; i++)
+          if (o && o[i] && typeof o[i].w === "number")
+            recs[i] = { w: o[i].w | 0, l: o[i].l | 0, d: o[i].d | 0 };
+      }
+    } catch (e) {}
+  }
+  function saveRecords() { try { localStorage.setItem(REC_KEY, JSON.stringify(recs)); } catch (e) {} }
+  function updateRecords(diff, won, draw) {
+    var r = recs[diff];
+    if (draw) r.d++; else if (won) r.w++; else r.l++;
+    saveRecords(); refreshRecLabels();
+    return r;
+  }
+  function refreshRecLabels() {
+    for (var i = 0; i < 3; i++)
+      el("rec" + i).textContent = recs[i].w + "W \u00B7 " + recs[i].l + "L \u00B7 " + recs[i].d + "D";
+  }
+
+  /* ---------- 背景（预渲染：渐变 + 棋盘暗纹 + 网格线） ---------- */
+  var bg = document.createElement("canvas");
+  bg.width = SZ * dpr; bg.height = SZ * dpr;
+  (function paintBG() {
+    var b = bg.getContext("2d"); b.scale(dpr, dpr);
+    var g = b.createLinearGradient(0, 0, 0, SZ);
+    g.addColorStop(0, "#0d0d1e"); g.addColorStop(1, "#08080f");
+    b.fillStyle = g; b.fillRect(0, 0, SZ, SZ);
+    b.fillStyle = "rgba(255,255,255,.016)";
+    for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++)
+      if ((x + y) % 2 === 0) b.fillRect(x * CELL, y * CELL, CELL, CELL);
+    b.strokeStyle = "rgba(255,255,255,.045)"; b.lineWidth = 1;
+    for (var i = 1; i < COLS; i++) { b.beginPath(); b.moveTo(i * CELL + .5, 0); b.lineTo(i * CELL + .5, SZ); b.stroke(); }
+    for (var j = 1; j < ROWS; j++) { b.beginPath(); b.moveTo(0, j * CELL + .5); b.lineTo(SZ, j * CELL + .5); b.stroke(); }
+    b.strokeStyle = "rgba(120,140,255,.16)"; b.lineWidth = 2;
+    b.strokeRect(1, 1, SZ - 2, SZ - 2);
+  })();
+
+  /* ---------- 绘制工具 ---------- */
+  function roundRect(c, x, y, w, h, rad) {
+    c.beginPath();
+    c.moveTo(x + rad, y);
+    c.arcTo(x + w, y, x + w, y + h, rad);
+    c.arcTo(x + w, y + h, x, y + h, rad);
+    c.arcTo(x, y + h, x, y, rad);
+    c.arcTo(x, y, x + w, y, rad);
+    c.closePath();
+  }
+  var colorCache = {};
+  function segColor(base, tt) {
+    var id = base + "_" + Math.round(tt * 20);
+    var c = colorCache[id];
+    if (!c) {
+      var L = 60 - tt * 24 + (tt < 0.06 ? 8 : 0);
+      c = colorCache[id] = "hsl(" + Math.round(base + tt * 14) + ",92%," + Math.round(L) + "%)";
+    }
+    return c;
+  }
+
+  /* ---------- 特效 ---------- */
+  var parts = [], floats = [];
+  function deathFX(ev) {
+    var col = ev.who === "p" ? "#3ef0d4" : "#ff4fd8";
+    var n = Math.min(ev.body.length, 20);
+    for (var i = 0; i < n; i++) {
+      var k = ev.body[i], cx = kx(k) * CELL + CELL / 2, cy = ky(k) * CELL + CELL / 2;
+      for (var j = 0; j < 3; j++) {
+        var a = Math.random() * Math.PI * 2, sp = 50 + Math.random() * 160;
+        parts.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30,
+                     life: .5 + Math.random() * .3, max: .8, col: col, sz: 2 + Math.random() * 3 });
+      }
+    }
+  }
+  function eatFX(ev) {
+    var cx = kx(ev.k) * CELL + CELL / 2, cy = ky(ev.k) * CELL + CELL / 2;
+    for (var i = 0; i < 8; i++) {
+      var a = Math.random() * Math.PI * 2, sp = 30 + Math.random() * 90;
+      parts.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+                   life: .35, max: .35, col: "#ffd166", sz: 2 + Math.random() * 2 });
+    }
+    floats.push({ x: cx, y: cy - 6, txt: "+1", life: .8,
+                  col: ev.who === "p" ? "#9ffcec" : "#ffc9ef" });
+  }
+
+  /* ---------- 渲染 ---------- */
+  function drawSnake(s) {
+    if (!s.alive) return;
+    var base = s === sim.p ? 172 : 312;
+    var n = s.body.length;
+    ctx.globalAlpha = Math.min(1, s.age / 6 + .3);   // 重生淡入
+    for (var i = n - 1; i >= 0; i--) {
+      var k = s.body[i], tt = n === 1 ? 0 : i / (n - 1);
+      var cx = kx(k) * CELL + CELL / 2, cy = ky(k) * CELL + CELL / 2;
+      var size = CELL - 6 - tt * 6;
+      if (i % 3 === 0 || i === 0) {   // 光晕（抽格绘制省性能）
+        ctx.fillStyle = "hsla(" + base + ",90%,60%,0.13)";
+        roundRect(ctx, cx - size / 2 - 3, cy - size / 2 - 3, size + 6, size + 6, 9);
+        ctx.fill();
+      }
+      ctx.fillStyle = segColor(base, tt);
+      roundRect(ctx, cx - size / 2, cy - size / 2, size, size, i === 0 ? 9 : 6);
+      ctx.fill();
+    }
+    // 眼睛
+    var h0 = s.body[0], hx = kx(h0) * CELL + CELL / 2, hy = ky(h0) * CELL + CELL / 2;
+    var fx = DX[s.dir], fy = DY[s.dir], sx = -fy, sy = fx;
+    for (var e = -1; e <= 1; e += 2) {
+      var ex = hx + fx * 4 + sx * e * 5, ey = hy + fy * 4 + sy * e * 5;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(ex, ey, 3.1, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#0a0a14";
+      ctx.beginPath(); ctx.arc(ex + fx * 1.4, ey + fy * 1.4, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawFoods(t) {
+    for (var i = 0; i < sim.foods.length; i++) {
+      var k = sim.foods[i], cx = kx(k) * CELL + CELL / 2, cy = ky(k) * CELL + CELL / 2;
+      var pulse = 1 + Math.sin(t / 180 + i * 1.7) * 0.15;   // 食物脉动
+      var r = 6.5 * pulse;
+      ctx.shadowColor = "rgba(255,209,102,.9)"; ctx.shadowBlur = 12;
+      ctx.fillStyle = "#ffd166";
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(255,255,255,.85)";
+      ctx.beginPath(); ctx.arc(cx - r * .3, cy - r * .3, r * .28, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  function drawRespawnText() {
+    if (sim.state !== "PLAY") return;
+    ctx.textAlign = "center"; ctx.font = "700 14px -apple-system,sans-serif";
+    if (!sim.p.alive) {
+      ctx.fillStyle = "rgba(62,240,212,.75)";
+      ctx.fillText("YOU RETURN IN " + (sim.p.respawn * sim.tickMs / 1000).toFixed(1) + "s", SZ / 2, SZ / 2 - 10);
+    }
+    if (!sim.a.alive) {
+      ctx.fillStyle = "rgba(255,79,216,.75)";
+      ctx.fillText("AI RETURN IN " + (sim.a.respawn * sim.tickMs / 1000).toFixed(1) + "s", SZ / 2, SZ / 2 + 12);
+    }
+  }
+  function render(t, dt) {
+    ctx.drawImage(bg, 0, 0, SZ, SZ);
+    drawFoods(t);
+    drawSnake(sim.p);
+    drawSnake(sim.a);
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var pt = parts[i];
+      pt.life -= dt;
+      if (pt.life <= 0) { parts.splice(i, 1); continue; }
+      pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vy += 220 * dt;
+      ctx.globalAlpha = Math.max(0, pt.life / pt.max);
+      ctx.fillStyle = pt.col;
+      ctx.fillRect(pt.x - pt.sz / 2, pt.y - pt.sz / 2, pt.sz, pt.sz);
+      ctx.globalAlpha = 1;
+    }
+    ctx.textAlign = "center"; ctx.font = "800 15px -apple-system,sans-serif";
+    for (var f = floats.length - 1; f >= 0; f--) {
+      var fl = floats[f];
+      fl.life -= dt; fl.y -= 36 * dt;
+      if (fl.life <= 0) { floats.splice(f, 1); continue; }
+      ctx.globalAlpha = Math.min(1, fl.life / .4);
+      ctx.fillStyle = fl.col;
+      ctx.fillText(fl.txt, fl.x, fl.y);
+      ctx.globalAlpha = 1;
+    }
+    drawRespawnText();
+  }
+
+  /* ---------- HUD / 流程 ---------- */
+  var lastPS = -1, lastAS = -1, lastDiff = 1;
+  function updateHUD() {
+    if (sim.p.score !== lastPS) { psEl.textContent = sim.p.score; lastPS = sim.p.score; }
+    if (sim.a.score !== lastAS) { asEl.textContent = sim.a.score; lastAS = sim.a.score; }
+  }
+  function handleEvents() {
+    var evs = sim.lastEvents;
+    for (var i = 0; i < evs.length; i++) {
+      var ev = evs[i];
+      if (ev.type === "eat") { eatFX(ev); sEat(); }
+      else if (ev.type === "death") { deathFX(ev); sDeath(); }
+      else if (ev.type === "respawn") sRespawn();
+      else if (ev.type === "end") endMatchUI(ev.winner);
+    }
+  }
+  function startMatch(d) {
+    lastDiff = d;
+    sim = createSim(d, d, false);
+    lastPS = -1; lastAS = -1;
+    diffLabel.textContent = DIFFS[d].name;
+    overlay.style.display = "none";
+    updateHUD();
+    ensureAudio();
+    portalStart();   // 一局实际玩法开始
+  }
+  function endMatchUI(winner) {
+    var won = winner === "p", draw = winner === "draw";
+    endTitle.textContent = draw ? "DRAW" : won ? "VICTORY" : "DEFEAT";
+    endTitle.style.color = draw ? "#ffd76a" : won ? "#3ef0d4" : "#ff4fd8";
+    endText.textContent = won ? "You out-slithered the AI!" :
+                          draw ? "Dead heat — both hit 25." :
+                          "The AI struck first. Rematch?";
+    finalScore.textContent = sim.p.score + " : " + sim.a.score;
+    var rec = updateRecords(sim.p.diff, won, draw);
+    recLine.textContent = DIFFS[sim.p.diff].name + " RECORD — " + rec.w + "W \u00B7 " + rec.l + "L \u00B7 " + rec.d + "D";
+    menuView.style.display = "none";
+    endView.style.display = "block";
+    overlay.style.display = "flex";
+    if (won) sWin(); else if (!draw) sLose();
+    portalStop(won && !draw);   // 一局结束
+  }
+  function showMenu() {
+    sim = createSim(1, 1, false);
+    sim.state = "MENU";   // 菜单背后展示静态场地
+    lastPS = -1; lastAS = -1;
+    diffLabel.textContent = "\u2014";
+    updateHUD();
+    menuView.style.display = "block";
+    endView.style.display = "none";
+    overlay.style.display = "flex";
+    refreshRecLabels();
+  }
+
+  /* ---------- 输入：键盘 + 触摸滑动（双输入） ---------- */
+  var KEYMAP = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3,
+                 w: 0, W: 0, d: 1, D: 1, s: 2, S: 2, a: 3, A: 3 };
+  document.addEventListener("keydown", function (e) {
+    ensureAudio();
+    if (sim.state === "OVER" && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault(); startMatch(lastDiff); return;
+    }
+    var d = KEYMAP[e.key];
+    if (d === undefined) return;
+    if (sim.state === "PLAY" && !sim.p.isAI) { tryTurn(sim.p, d); e.preventDefault(); }
+  });
+  var tsx = 0, tsy = 0, tracking = false;
+  function swipeStep(cx, cy, th) {
+    var dx = cx - tsx, dy = cy - tsy;
+    var ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+    if (Math.max(ax, ay) < th) return;
+    var d = ax > ay ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+    tsx = cx; tsy = cy;   // 重置起点 → 一次拖动可连续输入多个转向
+    if (sim.state === "PLAY" && !sim.p.isAI) tryTurn(sim.p, d);
+  }
+  canvas.addEventListener("touchstart", function (e) {
+    e.preventDefault(); ensureAudio();
+    tracking = true; tsx = e.touches[0].clientX; tsy = e.touches[0].clientY;
+  }, { passive: false });
+  canvas.addEventListener("touchmove", function (e) {
+    e.preventDefault();
+    if (!tracking) return;
+    swipeStep(e.touches[0].clientX, e.touches[0].clientY, 26);
+  }, { passive: false });
+  canvas.addEventListener("touchend", function (e) {
+    e.preventDefault();
+    if (tracking && e.changedTouches.length)
+      swipeStep(e.changedTouches[0].clientX, e.changedTouches[0].clientY, 18);
+    tracking = false;
+  }, { passive: false });
+
+  var diffBtns = document.querySelectorAll(".diff");
+  for (var bi = 0; bi < diffBtns.length; bi++) {
+    (function (btn) {
+      btn.addEventListener("click", function () {
+        ensureAudio(); sUI();
+        startMatch(parseInt(btn.getAttribute("data-d"), 10));
+      });
+    })(diffBtns[bi]);
+  }
+  el("againBtn").addEventListener("click", function () { ensureAudio(); sUI(); startMatch(lastDiff); });
+  el("menuBtn").addEventListener("click", function () { sUI(); showMenu(); });
+
+  /* ---------- 主循环：固定 tick 累加器 + rAF 渲染 ---------- */
+  var sim = null, acc = 0, lastT = 0;
+  function frame(t) {
+    var dt = Math.min((t - lastT) / 1000, 0.05); lastT = t;
+    if (sim.state === "PLAY") {
+      acc += dt * 1000;
+      if (acc > 260) acc = 260;   // 防后台追帧
+      while (acc >= sim.tickMs && sim.state === "PLAY") {
+        acc -= sim.tickMs;
+        stepMatch(sim);
+        handleEvents();
+        updateHUD();
+      }
+    } else acc = 0;
+    render(t, dt);
+    requestAnimationFrame(frame);
+  }
+
+  loadRecords();
+  applyMuteLabel();
+  showMenu();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
